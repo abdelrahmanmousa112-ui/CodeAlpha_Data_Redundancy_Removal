@@ -1,20 +1,33 @@
 from flask import Flask, request, render_template
-import sqlite3
+import psycopg
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
-DATABASE = "data.db"
+
+def get_connection():
+    return psycopg.connect(
+        host=os.getenv("DB_HOST"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT")
+    )
 
 
 def init_db():
-    conn = sqlite3.connect(DATABASE)
+
+    conn = get_connection()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            phone TEXT NOT NULL
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            phone VARCHAR(30) NOT NULL
         )
     """)
 
@@ -34,14 +47,15 @@ def add_user():
     email = request.form["email"].strip().lower()
     phone = request.form["phone"].strip()
 
-    conn = sqlite3.connect(DATABASE)
+    conn = get_connection()
 
     existing_user = conn.execute(
-        "SELECT id FROM users WHERE email = ?",
+        "SELECT id FROM users WHERE email = %s",
         (email,)
     ).fetchone()
 
     if existing_user:
+
         conn.close()
 
         return render_template(
@@ -50,7 +64,10 @@ def add_user():
         )
 
     conn.execute(
-        "INSERT INTO users (name, email, phone) VALUES (?, ?, ?)",
+        """
+        INSERT INTO users (name, email, phone)
+        VALUES (%s, %s, %s)
+        """,
         (name, email, phone)
     )
 
@@ -64,6 +81,7 @@ def add_user():
 
 
 if __name__ == "__main__":
+
     init_db()
 
     app.run(
